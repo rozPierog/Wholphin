@@ -1,5 +1,7 @@
 package com.github.damontecres.wholphin.ui.playback
 
+import android.R.attr.scaleX
+import android.R.attr.scaleY
 import androidx.activity.compose.BackHandler
 import androidx.annotation.Dimension
 import androidx.annotation.OptIn
@@ -38,6 +40,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -418,7 +422,7 @@ fun PlaybackPageContent(
 
             // Subtitles
             if (skipIndicatorDuration == 0L && currentItemPlayback.subtitleIndexEnabled) {
-                val maxSize by animateFloatAsState(if (controllerViewState.controlsVisible) .7f else 1f)
+                val offsetFraction = animateFloatAsState(if (controllerViewState.controlsVisible) .3f else 0f)
                 val isImageSubtitles = remember(cues) { cues.firstOrNull()?.bitmap != null }
                 AndroidView(
                     factory = { context ->
@@ -440,8 +444,10 @@ fun PlaybackPageContent(
                     },
                     modifier =
                         Modifier
-                            .fillMaxSize(maxSize)
-                            .align(Alignment.TopCenter)
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                translationY = -size.height * offsetFraction.value
+                            }.align(Alignment.TopCenter)
                             .background(Color.Transparent)
                             .ifElse(isImageSubtitles, Modifier.alpha(subtitleImageOpacity)),
                 )
