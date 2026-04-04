@@ -141,15 +141,19 @@ fun IntervalSeekBarImpl(
         durationMs = durationMs,
         onLeft = { multiplier ->
             controllerViewState.pulseControls()
-            val currentPos = if (hasSeeked) seekPositionMs else (progressProvider() * durationMs).toLong()
-            seekPositionMs = (currentPos - seekBack.inWholeMilliseconds * multiplier).coerceAtLeast(0L)
+            val currentPos =
+                if (hasSeeked) seekPositionMs else (progressProvider() * durationMs).toLong()
+            seekPositionMs =
+                (currentPos - seekBack.inWholeMilliseconds * multiplier).coerceAtLeast(0L)
             hasSeeked = true
             onSeek(seekPositionMs)
         },
         onRight = { multiplier ->
             controllerViewState.pulseControls()
-            val currentPos = if (hasSeeked) seekPositionMs else (progressProvider() * durationMs).toLong()
-            seekPositionMs = (currentPos + seekForward.inWholeMilliseconds * multiplier).coerceAtMost(durationMs)
+            val currentPos =
+                if (hasSeeked) seekPositionMs else (progressProvider() * durationMs).toLong()
+            seekPositionMs =
+                (currentPos + seekForward.inWholeMilliseconds * multiplier).coerceAtMost(durationMs)
             hasSeeked = true
             onSeek(seekPositionMs)
         },
@@ -181,9 +185,11 @@ private fun SeekBarDisplay(
     val isFocused by interactionSource.collectIsFocusedAsState()
     var leftHandledByRepeat by remember { mutableStateOf(false) }
     var rightHandledByRepeat by remember { mutableStateOf(false) }
-    val animatedIndicatorHeight by animateDpAsState(
+
+    // Animate drawing properties instead of layout to prevent relayouts and clipping
+    val animatedThickness by animateDpAsState(
         targetValue = if (isFocused) 12.dp else 6.dp,
-        label = "SeekBarHeight",
+        label = "SeekBarThickness",
     )
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -191,7 +197,7 @@ private fun SeekBarDisplay(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(animatedIndicatorHeight)
+                    .height(24.dp) // Fixed height to avoid clipping and relayout
                     .padding(horizontal = 4.dp)
                     .onPreviewKeyEvent { event ->
                         when (event.nativeKeyEvent.keyCode) {
@@ -263,13 +269,14 @@ private fun SeekBarDisplay(
                 val yOffset = size.height / 2
                 val progress = progressProvider()
                 val buffered = bufferedProgressProvider()
+                val thicknessPx = animatedThickness.toPx()
 
                 // Background
                 drawLine(
                     color = onSurface.copy(alpha = 0.25f),
                     start = Offset(0f, yOffset),
                     end = Offset(size.width, yOffset),
-                    strokeWidth = size.height,
+                    strokeWidth = thicknessPx,
                     cap = StrokeCap.Round,
                 )
                 // Buffered
@@ -277,7 +284,7 @@ private fun SeekBarDisplay(
                     color = onSurface.copy(alpha = 0.65f),
                     start = Offset(0f, yOffset),
                     end = Offset(size.width * buffered, yOffset),
-                    strokeWidth = size.height,
+                    strokeWidth = thicknessPx,
                     cap = StrokeCap.Round,
                 )
                 // Progress
@@ -285,12 +292,12 @@ private fun SeekBarDisplay(
                     color = color,
                     start = Offset(0f, yOffset),
                     end = Offset(size.width * progress, yOffset),
-                    strokeWidth = size.height,
+                    strokeWidth = thicknessPx,
                     cap = StrokeCap.Round,
                 )
                 drawCircle(
                     color = Color.White,
-                    radius = size.height + 2,
+                    radius = thicknessPx + 2,
                     center = Offset(size.width * progress, yOffset),
                 )
             },
