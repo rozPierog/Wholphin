@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -242,14 +243,16 @@ fun SeekBar(
     modifier: Modifier = Modifier,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
-    var bufferedProgress by remember(player) { mutableFloatStateOf(player.bufferedPosition.toFloat() / player.duration) }
-    var position by remember(player) { mutableLongStateOf(player.currentPosition) }
-    var progress by remember(player) { mutableFloatStateOf(player.currentPosition.toFloat() / player.duration) }
+    var bufferedProgress by remember(player) { mutableFloatStateOf(0f) }
+    var position by remember(player) { mutableLongStateOf(0L) }
+    var progress by remember(player) { mutableFloatStateOf(0f) }
+
     LaunchedEffect(player) {
         while (isActive) {
-            bufferedProgress = player.bufferedPosition.toFloat() / player.duration
+            val duration = player.duration.coerceAtLeast(1L)
+            bufferedProgress = player.bufferedPosition.toFloat() / duration
             position = player.currentPosition
-            progress = player.currentPosition.toFloat() / player.duration
+            progress = player.currentPosition.toFloat() / duration
             delay(250L)
         }
     }
@@ -258,13 +261,12 @@ fun SeekBar(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         IntervalSeekBarImpl(
-            progress = progress,
-            bufferedProgress = bufferedProgress,
+            progressProvider = { progress },
+            bufferedProgressProvider = { bufferedProgress },
             onSeek = {
                 onSeekProgress(it)
             },
             controllerViewState = controllerViewState,
-//            intervals = intervals,
             modifier = Modifier.fillMaxWidth(),
             interactionSource = interactionSource,
             enabled = isEnabled,
@@ -276,9 +278,21 @@ fun SeekBar(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            val remaining = ((player.duration - position) / 1000).seconds
+            val remainingTimeStr =
+                remember {
+                    derivedStateOf {
+                        val remaining = ((player.duration - position) / 1000).seconds
+                        "-$remaining"
+                    }
+                }
+            val positionTimeStr =
+                remember {
+                    derivedStateOf {
+                        (position / 1000).seconds.toString()
+                    }
+                }
             Text(
-                text = (position / 1000).seconds.toString(),
+                text = positionTimeStr.value,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.labelLarge,
                 modifier =
@@ -286,7 +300,7 @@ fun SeekBar(
                         .padding(8.dp),
             )
             Text(
-                text = "-$remaining",
+                text = remainingTimeStr.value,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.labelLarge,
                 modifier =

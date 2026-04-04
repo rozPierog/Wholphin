@@ -56,9 +56,9 @@ import kotlin.time.Duration
  */
 @Composable
 fun SteppedSeekBarImpl(
-    progress: Float,
+    progressProvider: () -> Float,
     durationMs: Long,
-    bufferedProgress: Float,
+    bufferedProgressProvider: () -> Float,
     onSeek: (Long) -> Unit,
     controllerViewState: ControllerViewState,
     modifier: Modifier = Modifier,
@@ -68,34 +68,34 @@ fun SteppedSeekBarImpl(
 ) {
     val isFocused by interactionSource.collectIsFocusedAsState()
     var hasSeeked by remember { mutableStateOf(false) }
-    var seekProgress by remember { mutableFloatStateOf(progress) }
-    val progressToUse = if (isFocused && hasSeeked) seekProgress else progress
+    var seekProgress by remember { mutableFloatStateOf(0f) }
+
     LaunchedEffect(isFocused) {
         if (!isFocused) hasSeeked = false
     }
 
     val offset = 1f / intervals
 
-    val seek = { percent: Float ->
-        onSeek((percent * durationMs).toLong())
-    }
-
     SeekBarDisplay(
         enabled = enabled,
-        progress = progressToUse,
-        bufferedProgress = bufferedProgress,
+        progressProvider = {
+            if (isFocused && hasSeeked) seekProgress else progressProvider()
+        },
+        bufferedProgressProvider = bufferedProgressProvider,
         durationMs = durationMs,
         onLeft = { multiplier ->
             controllerViewState.pulseControls()
-            seekProgress = (progressToUse - offset * multiplier).coerceAtLeast(0f)
+            val current = if (hasSeeked) seekProgress else progressProvider()
+            seekProgress = (current - offset * multiplier).coerceAtLeast(0f)
             hasSeeked = true
-            seek(seekProgress)
+            onSeek((seekProgress * durationMs).toLong())
         },
         onRight = { multiplier ->
             controllerViewState.pulseControls()
-            seekProgress = (progressToUse + offset * multiplier).coerceAtMost(1f)
+            val current = if (hasSeeked) seekProgress else progressProvider()
+            seekProgress = (current + offset * multiplier).coerceAtMost(1f)
             hasSeeked = true
-            seek(seekProgress)
+            onSeek((seekProgress * durationMs).toLong())
         },
         interactionSource = interactionSource,
         modifier = modifier,
@@ -108,9 +108,9 @@ fun SteppedSeekBarImpl(
 @OptIn(FlowPreview::class)
 @Composable
 fun IntervalSeekBarImpl(
-    progress: Float,
+    progressProvider: () -> Float,
     durationMs: Long,
-    bufferedProgress: Float,
+    bufferedProgressProvider: () -> Float,
     onSeek: (Long) -> Unit,
     controllerViewState: ControllerViewState,
     seekBack: Duration,
@@ -121,10 +121,7 @@ fun IntervalSeekBarImpl(
 ) {
     val isFocused by interactionSource.collectIsFocusedAsState()
     var hasSeeked by remember { mutableStateOf(false) }
-    var seekPositionMs by remember { mutableLongStateOf((progress * durationMs).toLong()) }
-//    val progressToUse by remember { derivedStateOf { if (isFocused && hasSeeked) seekPositionMs else (progress * durationMs).toLong() } }
-    val progressToUse =
-        if (isFocused && hasSeeked) seekPositionMs else (progress * durationMs).toLong()
+    var seekPositionMs by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(isFocused) {
         if (!isFocused) hasSeeked = false
@@ -132,21 +129,27 @@ fun IntervalSeekBarImpl(
 
     SeekBarDisplay(
         enabled = enabled,
-        progress = (progressToUse.toDouble() / durationMs).toFloat(),
-        bufferedProgress = bufferedProgress,
+        progressProvider = {
+            if (isFocused && hasSeeked) {
+                val d = durationMs.coerceAtLeast(1L)
+                (seekPositionMs.toDouble() / d).toFloat()
+            } else {
+                progressProvider()
+            }
+        },
+        bufferedProgressProvider = bufferedProgressProvider,
         durationMs = durationMs,
         onLeft = { multiplier ->
             controllerViewState.pulseControls()
-            seekPositionMs =
-                (progressToUse - seekBack.inWholeMilliseconds * multiplier).coerceAtLeast(0L)
+            val currentPos = if (hasSeeked) seekPositionMs else (progressProvider() * durationMs).toLong()
+            seekPositionMs = (currentPos - seekBack.inWholeMilliseconds * multiplier).coerceAtLeast(0L)
             hasSeeked = true
             onSeek(seekPositionMs)
         },
         onRight = { multiplier ->
             controllerViewState.pulseControls()
-            seekPositionMs =
-                (progressToUse + seekForward.inWholeMilliseconds * multiplier)
-                    .coerceAtMost(durationMs)
+            val currentPos = if (hasSeeked) seekPositionMs else (progressProvider() * durationMs).toLong()
+            seekPositionMs = (currentPos + seekForward.inWholeMilliseconds * multiplier).coerceAtMost(durationMs)
             hasSeeked = true
             onSeek(seekPositionMs)
         },
@@ -163,8 +166,8 @@ fun IntervalSeekBarImpl(
  */
 @Composable
 private fun SeekBarDisplay(
-    progress: Float,
-    bufferedProgress: Float,
+    progressProvider: () -> Float,
+    bufferedProgressProvider: () -> Float,
     durationMs: Long,
     onLeft: (Int) -> Unit,
     onRight: (Int) -> Unit,
@@ -179,7 +182,8 @@ private fun SeekBarDisplay(
     var leftHandledByRepeat by remember { mutableStateOf(false) }
     var rightHandledByRepeat by remember { mutableStateOf(false) }
     val animatedIndicatorHeight by animateDpAsState(
-        targetValue = 6.dp.times((if (isFocused) 2f else 1f)),
+        targetValue = if (isFocused) 12.dp else 6.dp,
+        label = "SeekBarHeight",
     )
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -256,41 +260,38 @@ private fun SeekBarDisplay(
                         false
                     }.focusable(enabled = enabled, interactionSource = interactionSource),
             onDraw = {
-                val yOffset = size.height.div(2)
+                val yOffset = size.height / 2
+                val progress = progressProvider()
+                val buffered = bufferedProgressProvider()
+
+                // Background
                 drawLine(
                     color = onSurface.copy(alpha = 0.25f),
-                    start = Offset(x = 0f, y = yOffset),
-                    end = Offset(x = size.width, y = yOffset),
+                    start = Offset(0f, yOffset),
+                    end = Offset(size.width, yOffset),
                     strokeWidth = size.height,
                     cap = StrokeCap.Round,
                 )
+                // Buffered
                 drawLine(
-                    color = onSurface.copy(alpha = .65f),
-                    start = Offset(x = 0f, y = yOffset),
-                    end =
-                        Offset(
-                            x = size.width.times(bufferedProgress),
-                            y = yOffset,
-                        ),
+                    color = onSurface.copy(alpha = 0.65f),
+                    start = Offset(0f, yOffset),
+                    end = Offset(size.width * buffered, yOffset),
                     strokeWidth = size.height,
                     cap = StrokeCap.Round,
                 )
+                // Progress
                 drawLine(
                     color = color,
-                    start = Offset(x = 0f, y = yOffset),
-                    end =
-                        Offset(
-//                        x = size.width.times(if (isSelected) seekProgress else progress),
-                            x = size.width.times(progress),
-                            y = yOffset,
-                        ),
+                    start = Offset(0f, yOffset),
+                    end = Offset(size.width * progress, yOffset),
                     strokeWidth = size.height,
                     cap = StrokeCap.Round,
                 )
                 drawCircle(
                     color = Color.White,
                     radius = size.height + 2,
-                    center = Offset(x = size.width.times(progress), y = yOffset),
+                    center = Offset(size.width * progress, yOffset),
                 )
             },
         )
