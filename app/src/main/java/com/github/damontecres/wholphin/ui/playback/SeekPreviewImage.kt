@@ -29,10 +29,11 @@ import com.github.damontecres.wholphin.ui.isNotNullOrBlank
 import org.jellyfin.sdk.model.api.TrickplayInfo
 
 fun Modifier.offsetByPercent(
-    xPercentage: Float,
+    xPercentageProvider: () -> Float,
     yOffset: Int,
 ) = this.then(
     Modifier.layout { measurable, constraints ->
+        val xPercentage = xPercentageProvider()
         val placeable = measurable.measure(constraints)
         layout(placeable.width, placeable.height) {
             placeable.placeRelative(
@@ -51,23 +52,23 @@ fun Modifier.offsetByPercent(
  * This will account for the composable actual width so it won't be pushed off screen.
  * In other words, 0% means the left edge of the composable will be at the left end of the x-axis.
  *
- * @param xPercentage percent offset between 0 inclusive and 1 inclusive
+ * @param xPercentageProvider provider for percent offset between 0 inclusive and 1 inclusive
  */
-fun Modifier.offsetByPercent(
-    @FloatRange(0.0, 1.0) xPercentage: Float,
-) = this.then(
-    Modifier.layout { measurable, constraints ->
-        val placeable = measurable.measure(constraints)
-        layout(placeable.width, placeable.height) {
-            placeable.placeRelative(
-                x =
-                    ((constraints.maxWidth * xPercentage).toInt() - placeable.width / 2)
-                        .coerceIn(0, constraints.maxWidth - placeable.width),
-                y = 0,
-            )
-        }
-    },
-)
+fun Modifier.offsetByPercent(xPercentageProvider: () -> Float) =
+    this.then(
+        Modifier.layout { measurable, constraints ->
+            val xPercentage = xPercentageProvider()
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, placeable.height) {
+                placeable.placeRelative(
+                    x =
+                        ((constraints.maxWidth * xPercentage).toInt() - placeable.width / 2)
+                            .coerceIn(0, constraints.maxWidth - placeable.width),
+                    y = 0,
+                )
+            }
+        },
+    )
 
 /**
  * Show trickplay preview image. This composable assumes the provided URL is for the correct index.

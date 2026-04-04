@@ -51,6 +51,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -481,7 +482,7 @@ fun PlaybackOverlay(
                         Modifier
                             .align(Alignment.BottomStart)
                             .offsetByPercent(
-                                xPercentage = seekProgressPercent.coerceIn(0f, 1f),
+                                { seekProgressPercent.coerceIn(0f, 1f) },
                             ).padding(bottom = controllerHeight - titleHeight - subtitleHeight),
                 ) {
                     if (trickplayInfo != null) {
@@ -621,7 +622,7 @@ fun Controller(
             modifier =
                 Modifier
                     .padding(start = 16.dp)
-                    .offset(y = verticalOffset),
+                    .graphicsLayer { translationY = verticalOffset.toPx() },
         ) {
             title?.let {
                 Text(
